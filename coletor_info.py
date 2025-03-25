@@ -9,6 +9,8 @@ import winreg
 import tkinter as tk
 from tkinter import messagebox
 import logging
+import multiprocessing
+import sys
 
 # Configuração de logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -70,7 +72,10 @@ def coletar_informacoes():
 def atualizar_planilha(informacoes):
     logging.debug("Iniciando atualização da planilha...")
     # Obter o diretório onde o executável está localizado
-    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        diretorio_atual = os.path.dirname(sys.executable)
+    else:
+        diretorio_atual = os.path.dirname(os.path.abspath(__file__))
     arquivo = os.path.join(diretorio_atual, 'informacoes_computadores.xlsx')
 
     try:
@@ -105,4 +110,6 @@ def main():
     input("Pressione Enter para sair...")
 
 if __name__ == "__main__":
+    # PyInstaller fix
+    multiprocessing.freeze_support()
     main()
