@@ -1,0 +1,2 @@
+pyinstaller --onefile --hidden-import=tkinter coletor_info.py
+pyinstaller --onefile coletor_info.py

@@ -8,48 +8,67 @@ import cpuinfo
 import winreg
 import tkinter as tk
 from tkinter import messagebox
+import logging
+
+# Configuração de logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def coletar_informacoes():
+    logging.debug("Iniciando coleta de informações...")
     informacoes = {}
-    informacoes['Nome do Computador'] = os.getenv('COMPUTERNAME')
-    informacoes['Endereço IP'] = socket.gethostbyname(socket.gethostname())
-    informacoes['Nome do Usuário'] = getpass.getuser()
-    
-    # Nome do Domínio ou Workgroup
     try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters")
-        domain, _ = winreg.QueryValueEx(key, "Domain")
-        if domain:
-            informacoes['Domínio'] = domain
-        else:
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters")
-            workgroup, _ = winreg.QueryValueEx(key, "Workgroup")
-            informacoes['Domínio'] = workgroup
+        informacoes['Nome do Computador'] = os.getenv('COMPUTERNAME')
+        informacoes['Endereço IP'] = socket.gethostbyname(socket.gethostname())
+        informacoes['Nome do Usuário'] = getpass.getuser()
+        
+        # Nome do Domínio
+        tentativas = 0
+        while tentativas < 2:
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters")
+                domain, _ = winreg.QueryValueEx(key, "Domain")
+                if domain:
+                    informacoes['Domínio'] = domain
+                    break
+                else:
+                    tentativas += 1
+            except FileNotFoundError:
+                logging.error("Chave de registro não encontrada para domínio.")
+                tentativas += 1
+            except Exception as e:
+                logging.error("Erro ao obter domínio: %s", e)
+                tentativas += 1
+        if tentativas == 2:
+            informacoes['Domínio'] = "Desconhecido"
+        
+        # Sistema Operacional e Versão
+        so_info = platform.uname()
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+            edition, _ = winreg.QueryValueEx(key, "EditionID")
+            informacoes['Sistema Operacional'] = f"{so_info.system} {so_info.release} {edition}"
+        except Exception as e:
+            logging.error("Erro ao obter informações do sistema operacional: %s", e)
+            informacoes['Sistema Operacional'] = f"{so_info.system} {so_info.release} Desconhecida"
+        
+        # Processador
+        cpu_info = cpuinfo.get_cpu_info()
+        # Ajustar o formato do processador
+        processador = cpu_info['brand_raw']
+        processador = processador.split(' ')[-3] + ' ' + ' '.join(processador.split(' ')[-2:])
+        informacoes['Processador'] = processador
+        
+        # Memória Total
+        informacoes['Memória Total (GB)'] = round(psutil.virtual_memory().total / (1024 ** 3))  # Arredondar para cima
+        
+        logging.debug("Informações coletadas: %s", informacoes)
     except Exception as e:
-        informacoes['Domínio'] = "Desconhecido"
-    
-    # Sistema Operacional e Versão
-    so_info = platform.uname()
-    try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
-        edition, _ = winreg.QueryValueEx(key, "EditionID")
-        informacoes['Sistema Operacional'] = f"{so_info.system} {so_info.release} {edition}"
-    except Exception as e:
-        informacoes['Sistema Operacional'] = f"{so_info.system} {so_info.release} Desconhecida"
-    
-    # Processador
-    cpu_info = cpuinfo.get_cpu_info()
-    # Ajustar o formato do processador
-    processador = cpu_info['brand_raw']
-    processador = processador.split(' ')[-3] + ' ' + ' '.join(processador.split(' ')[-2:])
-    informacoes['Processador'] = processador
-    
-    # Memória Total
-    informacoes['Memória Total (GB)'] = round(psutil.virtual_memory().total / (1024 ** 3))  # Arredondar para cima
+        logging.error("Erro ao coletar informações: %s", e)
     
     return informacoes
 
 def atualizar_planilha(informacoes):
+    logging.debug("Iniciando atualização da planilha...")
     # Obter o diretório onde o executável está localizado
     diretorio_atual = os.path.dirname(os.path.abspath(__file__))
     arquivo = os.path.join(diretorio_atual, 'informacoes_computadores.xlsx')
@@ -61,14 +80,17 @@ def atualizar_planilha(informacoes):
         else:
             workbook = Workbook()
             sheet = workbook.active
-            sheet.append(['Nome do Computador', 'Endereço IP', 'Nome do Usuário', 'Domínio', 'Processador', 'Memória Total (GB)', 'Sistema Operacional'])
+            sheet.append(['Nome do Computador', 'Nome do Usuário', 'Domínio', 'Processador', 'Memória Total (GB)', 'Sistema Operacional', 'Endereço IP'])
 
-        sheet.append([informacoes['Nome do Computador'], informacoes['Endereço IP'], informacoes['Nome do Usuário'], informacoes['Domínio'], informacoes['Processador'], informacoes['Memória Total (GB)'], informacoes['Sistema Operacional']])
+        sheet.append([informacoes['Nome do Computador'], informacoes['Nome do Usuário'], informacoes['Domínio'], informacoes['Processador'], informacoes['Memória Total (GB)'], informacoes['Sistema Operacional'], informacoes['Endereço IP']])
         workbook.save(arquivo)
+        logging.debug("Planilha atualizada com sucesso: %s", arquivo)
         mostrar_alerta(f"Planilha atualizada com sucesso: {arquivo}")
     except PermissionError:
+        logging.error("Erro de permissão ao tentar salvar o arquivo: %s", arquivo)
         mostrar_alerta(f"Erro de permissão ao tentar salvar o arquivo: {arquivo}. Verifique se o arquivo está aberto ou se você tem permissões de escrita.")
     except Exception as e:
+        logging.error("Ocorreu um erro ao tentar salvar o arquivo: %s", e)
         mostrar_alerta(f"Ocorreu um erro ao tentar salvar o arquivo: {e}")
 
 def mostrar_alerta(mensagem):
@@ -80,6 +102,7 @@ def mostrar_alerta(mensagem):
 def main():
     informacoes = coletar_informacoes()
     atualizar_planilha(informacoes)
+    input("Pressione Enter para sair...")
 
 if __name__ == "__main__":
     main()
