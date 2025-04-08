@@ -63,6 +63,15 @@ def coletar_informacoes():
         # Memória Total
         informacoes['Memória Total (GB)'] = round(psutil.virtual_memory().total / (1024 ** 3))  # Arredondar para cima
         
+        # Modelo do Computador
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\BIOS")
+            model, _ = winreg.QueryValueEx(key, "SystemProductName")
+            informacoes['Modelo do Computador'] = model
+        except Exception as e:
+            logging.error("Erro ao obter modelo do computador: %s", e)
+            informacoes['Modelo do Computador'] = "Desconhecido"
+        
         logging.debug("Informações coletadas: %s", informacoes)
     except Exception as e:
         logging.error("Erro ao coletar informações: %s", e)
@@ -85,9 +94,9 @@ def atualizar_planilha(informacoes):
         else:
             workbook = Workbook()
             sheet = workbook.active
-            sheet.append(['Nome do Computador', 'Nome do Usuário', 'Domínio', 'Processador', 'Memória Total (GB)', 'Sistema Operacional', 'Endereço IP'])
+            sheet.append(['Nome do Computador', 'Nome do Usuário', 'Domínio', 'Modelo do Computador', 'Processador', 'Memória Total (GB)', 'Sistema Operacional', 'Endereço IP'])
 
-        sheet.append([informacoes['Nome do Computador'], informacoes['Nome do Usuário'], informacoes['Domínio'], informacoes['Processador'], informacoes['Memória Total (GB)'], informacoes['Sistema Operacional'], informacoes['Endereço IP']])
+        sheet.append([informacoes['Nome do Computador'], informacoes['Nome do Usuário'], informacoes['Domínio'], informacoes['Modelo do Computador'], informacoes['Processador'], informacoes['Memória Total (GB)'], informacoes['Sistema Operacional'], informacoes['Endereço IP']])
         workbook.save(arquivo)
         logging.debug("Planilha atualizada com sucesso: %s", arquivo)
         mostrar_alerta(f"Planilha atualizada com sucesso: {arquivo}")
