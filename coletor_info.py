@@ -11,6 +11,7 @@ from tkinter import messagebox
 import logging
 import multiprocessing
 import sys
+import subprocess
 
 # Configuração de logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -72,6 +73,14 @@ def coletar_informacoes():
             logging.error("Erro ao obter modelo do computador: %s", e)
             informacoes['Modelo do Computador'] = "Desconhecido"
         
+        # Número de Série
+        try:
+            serial_number = subprocess.check_output(['powershell', 'Get-WmiObject -Class Win32_BIOS | Select-Object -Property SerialNumber']).decode().split('\n')[3].strip()
+            informacoes['Número de Série'] = serial_number
+        except Exception as e:
+            logging.error("Erro ao obter número de série: %s", e)
+            informacoes['Número de Série'] = "Desconhecido"
+        
         logging.debug("Informações coletadas: %s", informacoes)
     except Exception as e:
         logging.error("Erro ao coletar informações: %s", e)
@@ -94,9 +103,9 @@ def atualizar_planilha(informacoes):
         else:
             workbook = Workbook()
             sheet = workbook.active
-            sheet.append(['Nome do Computador', 'Nome do Usuário', 'Domínio', 'Modelo do Computador', 'Processador', 'Memória Total (GB)', 'Sistema Operacional', 'Endereço IP'])
+            sheet.append(['Nome do Computador', 'Nome do Usuário', 'Domínio', 'Número de Série', 'Modelo do Computador', 'Processador', 'Memória Total (GB)', 'Sistema Operacional', 'Endereço IP'])
 
-        sheet.append([informacoes['Nome do Computador'], informacoes['Nome do Usuário'], informacoes['Domínio'], informacoes['Modelo do Computador'], informacoes['Processador'], informacoes['Memória Total (GB)'], informacoes['Sistema Operacional'], informacoes['Endereço IP']])
+        sheet.append([informacoes['Nome do Computador'], informacoes['Nome do Usuário'], informacoes['Domínio'], informacoes['Número de Série'], informacoes['Modelo do Computador'], informacoes['Processador'], informacoes['Memória Total (GB)'], informacoes['Sistema Operacional'], informacoes['Endereço IP']])
         workbook.save(arquivo)
         logging.debug("Planilha atualizada com sucesso: %s", arquivo)
         mostrar_alerta(f"Planilha atualizada com sucesso: {arquivo}")
